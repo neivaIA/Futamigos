@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teste Firebase</title>
+<style>
+body{font-family:Arial,sans-serif;padding:20px;background:#f0f2f8;color:#333}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.ok{color:#00913f;font-weight:700}
+.err{color:#c0272d;font-weight:700}
+.loading{color:#666}
+h2{color:#1a2744;margin-bottom:4px}
+pre{background:#f5f5f5;padding:10px;border-radius:8px;font-size:.75rem;overflow-x:auto;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1 style="color:#1a2744">🔥 Teste Firebase — BABA</h1>
+
+<div class="card">
+  <h2>Status da conexão</h2>
+  <div id="status" class="loading">⏳ Conectando...</div>
+</div>
+
+<div class="card">
+  <h2>👥 Players</h2>
+  <div id="players" class="loading">⏳ Carregando...</div>
+</div>
+
+<div class="card">
+  <h2>📅 Matches</h2>
+  <div id="matches" class="loading">⏳ Carregando...</div>
+</div>
+
+<div class="card">
+  <h2>💰 Finance</h2>
+  <div id="finance" class="loading">⏳ Carregando...</div>
+</div>
+
+<div class="card">
+  <h2>📋 Log completo</h2>
+  <pre id="log"></pre>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const log = [];
+function addLog(msg) {
+  log.push(new Date().toLocaleTimeString('pt-BR') + ' — ' + msg);
+  document.getElementById('log').textContent = log.join('\n');
+}
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB9-U9f51rHL_KmjAFdTSV3MwLoegfvN-M",
+  authDomain: "futamigos-2d0f1.firebaseapp.com",
+  projectId: "futamigos-2d0f1",
+  storageBucket: "futamigos-2d0f1.firebasestorage.app",
+  messagingSenderId: "649396659025",
+  appId: "1:649396659025:web:003aedacf592128fd46970"
+};
+
+try {
+  addLog('Inicializando Firebase...');
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  document.getElementById('status').innerHTML = '<span class="ok">✅ Firebase conectado!</span>';
+  addLog('Firebase OK');
+
+  // Testar players
+  try {
+    addLog('Buscando players...');
+    const snap = await getDocs(collection(db, 'players'));
+    const count = snap.size;
+    document.getElementById('players').innerHTML = count > 0
+      ? `<span class="ok">✅ ${count} jogadores encontrados</span><br><small>${snap.docs.slice(0,3).map(d=>d.data().name).join(', ')}${count>3?'...':''}</small>`
+      : '<span class="err">❌ Nenhum jogador — coleção vazia</span>';
+    addLog(`Players: ${count} docs`);
+  } catch(e) {
+    document.getElementById('players').innerHTML = `<span class="err">❌ Erro: ${e.message}</span>`;
+    addLog('Erro players: ' + e.message);
+  }
+
+  // Testar matches
+  try {
+    addLog('Buscando matches...');
+    const snap = await getDocs(collection(db, 'matches'));
+    const count = snap.size;
+    document.getElementById('matches').innerHTML = count > 0
+      ? `<span class="ok">✅ ${count} partidas encontradas</span>`
+      : '<span class="err">❌ Nenhuma partida — coleção vazia</span>';
+    addLog(`Matches: ${count} docs`);
+  } catch(e) {
+    document.getElementById('matches').innerHTML = `<span class="err">❌ Erro: ${e.message}</span>`;
+    addLog('Erro matches: ' + e.message);
+  }
+
+  // Testar finance
+  try {
+    addLog('Buscando finance...');
+    const snap = await getDocs(collection(db, 'finance'));
+    const count = snap.size;
+    document.getElementById('finance').innerHTML = count > 0
+      ? `<span class="ok">✅ ${count} registros financeiros</span>`
+      : '<span class="err">❌ Nenhum registro — coleção vazia</span>';
+    addLog(`Finance: ${count} docs`);
+  } catch(e) {
+    document.getElementById('finance').innerHTML = `<span class="err">❌ Erro: ${e.message}</span>`;
+    addLog('Erro finance: ' + e.message);
+  }
+
+  addLog('Teste concluído!');
+
+} catch(e) {
+  document.getElementById('status').innerHTML = `<span class="err">❌ Erro ao conectar: ${e.message}</span>`;
+  addLog('ERRO GERAL: ' + e.message);
+}
+</script>
+</body>
+</html>
