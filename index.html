@@ -403,6 +403,10 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
       </div>
       <div id="sort-result"></div>
     </div>
+    <div class="page" id="pg-backup">
+      <div class="ph"><h2>💾 <em>Backup</em></h2></div>
+      <div id="pg-backup-content"></div>
+    </div>
     <!-- PLAYER PAGES -->
     <div class="page" id="pg-phome">
       <div class="ph"><h2 id="p-welcome">Olá! 👋</h2>
@@ -872,7 +876,7 @@ function launchApp(){
   navigateTo(mode==='admin'?'pg-dash':'pg-phome');
 
 }
-const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-sort',ico:'🎲',label:'Sorteio'}];
+const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-sort',ico:'🎲',label:'Sorteio'},{id:'pg-backup',ico:'💾',label:'Backup'}];
 const PLAYER_TABS=[{id:'pg-phome',ico:'🏠',label:'Início'},{id:'pg-pparts',ico:'📅',label:'Partidas'},{id:'pg-pfin',ico:'💰',label:'Financeiro'},{id:'pg-prank',ico:'🏆',label:'Ranking'},{id:'pg-pcchurr',ico:'🎂',label:'Churras.'}];
 function buildNav(){
   const tabs=mode==='admin'?ADMIN_TABS:PLAYER_TABS;
@@ -895,6 +899,7 @@ function renderPage(pgId){
     'pg-fin':()=>renderFin(),'pg-rank':()=>renderRank(currentRankType,null,'rank-list'),
     'pg-churr':renderChurrasco,
     'pg-sort':renderSorteio,
+    'pg-backup':renderBackup,
     'pg-phome':renderPlayerHome,'pg-pparts':renderPlayerMatches,'pg-pfin':renderPlayerFin,'pg-pcchurr':renderPlayerChurrasco,
     'pg-prank':()=>{currentRankYear=currentRankYear||new Date().getFullYear();renderRank(currentRankType,null,'p-rank-list');},
   };
@@ -1704,6 +1709,159 @@ function renderRank(type,_,listId){
       </div>
     </div>`;
   }).join('');
+}
+
+// ── BACKUP ──
+function renderBackup(){
+  const el=document.getElementById('pg-backup-content');if(!el)return;
+  const now=new Date().toLocaleDateString('pt-BR');
+  el.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">📤 Exportar Dados</div>
+      <div style="font-size:.82rem;color:var(--m);margin-bottom:14px;line-height:1.6">
+        Exporta todos os dados do Firebase em formato JSON. Use para fazer backup ou migrar para outro projeto.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="exportarBackup('completo')">💾 Exportar Backup Completo</button>
+        <button class="btn btn-outline btn-block" onclick="exportarBackup('players')">👥 Só Jogadores</button>
+        <button class="btn btn-outline btn-block" onclick="exportarBackup('matches')">📅 Só Partidas</button>
+        <button class="btn btn-outline btn-block" onclick="exportarBackup('finance')">💰 Só Financeiro</button>
+      </div>
+      <div style="margin-top:12px;padding:10px 13px;background:var(--bg3);border-radius:10px;font-size:.74rem;color:var(--m)">
+        📅 Dados atuais: ${players.length} jogadores · ${matches.length} partidas · ${finance.length} registros financeiros · ${avulsos.length} avulsos
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">📥 Importar / Restaurar</div>
+      <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:10px;padding:10px 13px;font-size:.78rem;color:var(--o);margin-bottom:14px;font-weight:600">
+        ⚠️ A importação <strong>adiciona</strong> os dados ao banco — não apaga os existentes. Use em banco vazio para restauração completa.
+      </div>
+      <div style="font-size:.82rem;color:var(--m);margin-bottom:14px;line-height:1.6">
+        Selecione um arquivo JSON exportado anteriormente pelo BABA.
+      </div>
+      <label class="btn btn-ghost btn-block" style="cursor:pointer;text-align:center">
+        📂 Selecionar arquivo JSON
+        <input type="file" accept=".json" id="input-backup" style="display:none" onchange="importarBackup(this)">
+      </label>
+      <div id="backup-import-status" style="margin-top:10px"></div>
+    </div>`;
+}
+
+window.exportarBackup=function(tipo){
+  let dados={};
+  const ts=new Date().toISOString().slice(0,10);
+
+  if(tipo==='completo'||tipo==='players')  dados.players  = players;
+  if(tipo==='completo'||tipo==='matches')  dados.matches  = matches;
+  if(tipo==='completo'||tipo==='finance')  dados.finance  = finance;
+  if(tipo==='completo')                    dados.requests = requests;
+  if(tipo==='completo')                    dados.avulsos  = avulsos;
+
+  dados._meta={
+    exportadoEm: new Date().toISOString(),
+    app: 'BABA - Baneb Entre Amigos',
+    versao: '1.0',
+    tipo,
+    totais:{
+      players:players.length,
+      matches:matches.length,
+      finance:finance.length,
+      avulsos:avulsos.length
+    }
+  };
+
+  const json=JSON.stringify(dados,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`baba-backup-${tipo}-${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`✅ Backup "${tipo}" exportado!`,'ok');
+}
+
+window.importarBackup=async function(input){
+  if(!input.files[0])return;
+  const statusEl=document.getElementById('backup-import-status');
+  statusEl.innerHTML='<div style="color:var(--m);font-size:.82rem">⏳ Lendo arquivo...</div>';
+
+  const reader=new FileReader();
+  reader.onload=async(e)=>{
+    try{
+      const dados=JSON.parse(e.target.result);
+      if(!dados._meta){statusEl.innerHTML='<div style="color:var(--r);font-size:.82rem">❌ Arquivo inválido. Use um backup exportado pelo BABA.</div>';return;}
+
+      const resumo=[];
+      let total=0;
+
+      // confirmar antes de importar
+      const msg=`Importar backup de ${dados._meta.exportadoEm?.slice(0,10)||'data desconhecida'}?
+
+`+
+        `• ${dados.players?.length||0} jogadores
+`+
+        `• ${dados.matches?.length||0} partidas
+`+
+        `• ${dados.finance?.length||0} registros financeiros
+`+
+        `• ${dados.avulsos?.length||0} avulsos
+
+`+
+        `Os dados serão ADICIONADOS ao banco atual.`;
+      if(!confirm(msg))return;
+
+      statusEl.innerHTML='<div style="color:var(--m);font-size:.82rem">⏳ Importando dados...</div>';
+
+      // importar players
+      if(dados.players?.length){
+        for(const p of dados.players){
+          const {id,...data}=p;
+          // só importa se não existir (evita duplicatas)
+          const existe=players.find(x=>x.name===p.name&&x.status===p.status);
+          if(!existe){
+            try{await addDoc(colPlayers(),{...data,importadoEm:serverTimestamp()});total++;}catch(er){}
+          }
+        }
+        resumo.push(`${dados.players.length} jogadores processados`);
+      }
+
+      // importar finance
+      if(dados.finance?.length){
+        for(const f of dados.finance){
+          const {id,...data}=f;
+          const existe=finance.find(x=>x.key===f.key);
+          if(!existe){
+            try{await addDoc(colFinance(),{...data,importadoEm:serverTimestamp()});total++;}catch(er){}
+          }
+        }
+        resumo.push(`${dados.finance.length} registros financeiros processados`);
+      }
+
+      // importar avulsos
+      if(dados.avulsos?.length){
+        for(const av of dados.avulsos){
+          const {id,...data}=av;
+          try{await addDoc(colAvulsos(),{...data,importadoEm:serverTimestamp()});total++;}catch(er){}
+        }
+        resumo.push(`${dados.avulsos.length} avulsos importados`);
+      }
+
+      statusEl.innerHTML=`<div style="background:#e8fff2;border:1px solid #b3f0cc;border-radius:10px;padding:10px 13px;font-size:.82rem;color:#00913f;font-weight:600">
+        ✅ Importação concluída! ${total} registros adicionados.<br>
+        <span style="font-weight:400">${resumo.join(' · ')}</span>
+      </div>`;
+      input.value='';
+      toast('✅ Backup importado!','ok');
+
+    }catch(err){
+      statusEl.innerHTML=`<div style="color:var(--r);font-size:.82rem">❌ Erro ao ler arquivo: ${err.message}</div>`;
+    }
+  };
+  reader.readAsText(input.files[0]);
 }
 
 // ── SORTEIO ──
