@@ -1100,6 +1100,22 @@ window.saveEditPlayer=async function(){
   if(newPass.length>0){if(newPass.length<6){toast('⚠️ Senha mínimo 6 caracteres!');return;}upd.password=newPass;}
   try{await updateDoc(doc(db,'players',id),upd);closeModal('m-edit-player');toast('✅ Atualizado!','ok');}catch(e){toast('❌ Erro.','err');}
 }
+window.togglePlayerStatus=async function(id,novoStatus){
+  const p=players.find(x=>x.id===id);if(!p)return;
+  const msg=novoStatus==='inativo'
+    ?`Desativar "${p.name}"?
+
+Ele não aparecerá mais nas partidas e nos lançamentos em massa.
+O histórico financeiro e estatísticas são preservados.`
+    :`Reativar "${p.name}"?`;
+  if(!confirm(msg))return;
+  try{
+    await updateDoc(doc(db,'players',id),{status:novoStatus});
+    renderPlayers();
+    toast(novoStatus==='inativo'?`⏸️ ${p.name} desativado.`:`✅ ${p.name} reativado!`,'ok');
+  }catch(e){toast('❌ Erro.','err');}
+}
+
 window.deletePlayer=async function(id){
   const p=players.find(x=>x.id===id);
   if(!confirm(`Remover "${p?.name}"?`))return;
@@ -1113,23 +1129,44 @@ window.deletePlayer=async function(id){
 function renderPlayers(){
   const el=document.getElementById('jogs-list');
   if(!players.length){el.innerHTML=`<div class="empty"><div class="ei">👥</div><p>Nenhum jogador cadastrado.</p></div>`;return;}
-  const stats=recalcStats();
   const searchEl=document.getElementById('jogs-search');
   const q=(searchEl?searchEl.value:'').toLowerCase().trim();
-  const sorted=[...players].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const sorted=[...players].sort((a,b)=>{
+    // ativos primeiro, depois inativos
+    if(a.status==='inativo'&&b.status!=='inativo')return 1;
+    if(a.status!=='inativo'&&b.status==='inativo')return -1;
+    return a.name.localeCompare(b.name,'pt-BR');
+  });
   const filtered=q?sorted.filter(p=>p.name.toLowerCase().includes(q)):sorted;
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="ei">🔍</div><p>Nenhum jogador encontrado.</p></div>`;return;}
-  el.innerHTML=filtered.map(p=>{
+  const ativos=filtered.filter(p=>p.status!=='inativo');
+  const inativos=filtered.filter(p=>p.status==='inativo');
+  const renderItem=(p)=>{
     const inad=finance.filter(f=>f.playerId===p.id&&f.status==='pendente').length;
-    return `<div class="pli">
-      <div class="pli-left"><div class="ava ava-40">${ini(p.name)}</div>
-        <div><div class="pli-name">${p.name} <span style="color:var(--m);font-size:.72rem">#${p.num}</span> ${!p.password?'<span class="badge badge-gray" style="font-size:.6rem">sem senha</span>':''}</div>
-          <div class="pli-sub">${p.pos} · R$ ${Number(p.valor).toFixed(2)}/mês${inad>0?` · <span style="color:var(--r);font-weight:600">${inad} pend.</span>`:''}</div></div></div>
+    const isInativo=p.status==='inativo';
+    return `<div class="pli" style="${isInativo?'opacity:.55;background:#f5f5f5;':''}">
+      <div class="pli-left"><div class="ava ava-40" style="${isInativo?'background:linear-gradient(135deg,#9e9e9e,#bdbdbd)':''}">${ini(p.name)}</div>
+        <div>
+          <div class="pli-name">${p.name} <span style="color:var(--m);font-size:.72rem">#${p.num}</span>
+            ${isInativo?'<span class="badge badge-gray" style="font-size:.6rem">Inativo</span>':''}
+            ${!p.password&&!isInativo?'<span class="badge badge-gray" style="font-size:.6rem">sem senha</span>':''}
+          </div>
+          <div class="pli-sub">${p.pos} · R$ ${Number(p.valor).toFixed(2)}/mês${inad>0&&!isInativo?` · <span style="color:var(--r);font-weight:600">${inad} pend.</span>`:''}</div>
+        </div>
+      </div>
       <div class="pli-actions">
-        <button class="btn btn-outline btn-xs" onclick="openEditPlayer('${p.id}')">✏️</button>
-        <button class="btn btn-danger btn-xs" onclick="deletePlayer('${p.id}')">🗑️</button>
+        ${isInativo
+          ?`<button class="btn btn-primary btn-xs" onclick="togglePlayerStatus('${p.id}','ativo')" title="Reativar">✅ Reativar</button>`
+          :`<button class="btn btn-outline btn-xs" onclick="openEditPlayer('${p.id}')">✏️</button>
+           <button class="btn btn-warning btn-xs" onclick="togglePlayerStatus('${p.id}','inativo')" title="Desativar">⏸️</button>
+           <button class="btn btn-danger btn-xs" onclick="deletePlayer('${p.id}')">🗑️</button>`
+        }
       </div></div>`;
-  }).join('');
+  };
+  let html='';
+  if(ativos.length) html+=ativos.map(renderItem).join('');
+  if(inativos.length) html+=`<div class="stitle" style="margin-top:14px">⏸️ Inativos (${inativos.length})</div>`+inativos.map(renderItem).join('');
+  el.innerHTML=html;
 }
 
 // ── MATCHES ──
@@ -1232,7 +1269,8 @@ window.openMatchDetail=function(id){
   let cfHtml=`<div class="stitle" style="margin-top:0">✅ Confirmações</div>`;
   if(!players.length){cfHtml+=`<p style="color:var(--m);font-size:.85rem">Nenhum jogador cadastrado.</p>`;}
   else{
-    const sortedConf=[...players].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    // só mostra jogadores ativos nas confirmações
+    const sortedConf=[...players].filter(p=>p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
     sortedConf.forEach(p=>{if(cfData[p.id]===undefined)cfData[p.id]=null;});
     cfHtml+=sortedConf.map(p=>{const s=cfData[p.id];
       return `<div class="cfi">
@@ -1286,8 +1324,8 @@ window.setConf=async function(matchId,playerId,val){
 window.sendMatchWA=function(id){
   const m=matches.find(x=>x.id===id);if(!m)return;
   const cf=m.confirmations||{};
-  const confList=[...players].filter(p=>cf[p.id]===true).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
-  const openList=[...players].filter(p=>cf[p.id]===null||cf[p.id]===undefined).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
+  const confList=[...players].filter(p=>cf[p.id]===true&&p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
+  const openList=[...players].filter(p=>(cf[p.id]===null||cf[p.id]===undefined)&&p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
   let txt=`⚽ *BABA - ${fmtDateLong(m.date)}*\n🕐 ${m.time} | 📍 ${m.local}\n\n`;
   txt+=`✅ *Confirmados (${confList.length}):*\n${confList.length?confList.map((n,i)=>`${i+1}. ${n}`).join('\n'):'Nenhum ainda'}\n\n`;
   txt+=`⏳ *Aguardando resposta (${openList.length}):*\n${openList.length?openList.map((n,i)=>`${i+1}. ${n}`).join('\n'):'Todos responderam'}\n\n`;
@@ -1328,8 +1366,8 @@ window.openSumula=function(matchId){
   closeModal('m-match');sumulaMatchId=matchId;
   const m=matches.find(x=>x.id===matchId);if(!m)return;
   const sumula=m.sumula||{golsA:0,golsB:0,artilheiros:{},assistencias:{}};
-  const confirmed=[...players].filter(p=>(m.confirmations||{})[p.id]===true).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  const allP=confirmed.length?confirmed:[...players].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const confirmed=[...players].filter(p=>(m.confirmations||{})[p.id]===true&&p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const allP=confirmed.length?confirmed:[...players].filter(p=>p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
   const isLive=m.status==='em-andamento';
   const liveWarn=isLive?`<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:.8rem;color:var(--o);font-weight:600">▶ Partida em andamento — stats em tempo real</div>`:'';
   const playerRows=allP.map(p=>`
@@ -1396,7 +1434,7 @@ function getMonths(){
 window.lançarMesEmMassa=async function(mes){
   const defVal=parseFloat(localStorage.getItem('baba_default_valor')||'50')||50;
   const jobs=[];
-  players.forEach(p=>{
+  players.filter(p=>p.status!=='inativo').forEach(p=>{
     const key=`${p.id}_${mes}`;
     const exists=finance.find(f=>f.key===key);
     if(!exists){
@@ -1510,7 +1548,7 @@ window.deleteAvulso=async function(id){
 
 function buildMensSelect(){
   const sel=document.getElementById('mens-p');
-  const sorted=[...players].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const sorted=[...players].filter(p=>p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
   sel.innerHTML=sorted.length?sorted.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''):'<option value="">Nenhum jogador</option>';
   const defV=parseFloat(localStorage.getItem('baba_default_valor')||'50')||50;
   const hint=document.getElementById('mens-val-hint');if(hint)hint.textContent='R$ '+defV.toFixed(2);
@@ -1535,7 +1573,14 @@ function renderFin(){
   buildFinMonthTabs();
   const el=document.getElementById('fin-list');
   if(!players.length){el.innerHTML=`<div class="empty"><div class="ei">💰</div><p>Cadastre jogadores primeiro.</p></div>`;return;}
-  let rows=[...players].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>{
+  // no mês atual mostra só ativos; em meses anteriores mostra todos (histórico)
+  const now=new Date();
+  const mesAtual=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
+  const isMesAtual=currentFinMonth===mesAtual;
+  const playersParaFin=isMesAtual
+    ?[...players].filter(p=>p.status!=='inativo')
+    :[...players]; // histórico: mostra todos
+  let rows=playersParaFin.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>{
     const recs=finance.filter(f=>f.playerId===p.id&&f.mes===currentFinMonth).sort((a,b)=>b.id-a.id);
     return{p,last:recs[0]||null};
   });
