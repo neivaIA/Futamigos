@@ -1326,10 +1326,19 @@ window.sendMatchWA=function(id){
   const cf=m.confirmations||{};
   const confList=[...players].filter(p=>cf[p.id]===true&&p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
   const openList=[...players].filter(p=>(cf[p.id]===null||cf[p.id]===undefined)&&p.status!=='inativo').sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>p.name);
+  const convs=(m.convidados||[]).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  const totalConf=confList.length+convs.length;
   let txt=`⚽ *BABA - ${fmtDateLong(m.date)}*\n🕐 ${m.time} | 📍 ${m.local}\n\n`;
-  txt+=`✅ *Confirmados (${confList.length}):*\n${confList.length?confList.map((n,i)=>`${i+1}. ${n}`).join('\n'):'Nenhum ainda'}\n\n`;
-  txt+=`⏳ *Aguardando resposta (${openList.length}):*\n${openList.length?openList.map((n,i)=>`${i+1}. ${n}`).join('\n'):'Todos responderam'}\n\n`;
-  txt+=`🔗 Confirme sua presença: www.babaentreamigos.com.br`;
+  txt+=`✅ *Confirmados (${totalConf}):*\n`;
+  confList.forEach((n,i)=>{txt+=`${i+1}. ${n}\n`;});
+  if(!confList.length&&!convs.length)txt+=`Nenhum ainda\n`;
+  if(convs.length){
+    txt+=`\n👤 *Convidados (${convs.length}):*\n`;
+    convs.forEach((cv,i)=>{txt+=`${i+1}. ${cv.nome}\n`;});
+  }
+  txt+=`\n⏳ *Aguardando resposta (${openList.length}):*\n`;
+  txt+=openList.length?openList.map((n,i)=>`${i+1}. ${n}`).join('\n'):'Todos responderam';
+  txt+=`\n\n🔗 Confirme sua presença: www.babaentreamigos.com.br`;
   window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
 }
 
