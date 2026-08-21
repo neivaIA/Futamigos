@@ -407,6 +407,15 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
       <div class="ph"><h2>💾 <em>Backup</em></h2></div>
       <div id="pg-backup-content"></div>
     </div>
+    <div class="page" id="pg-desp">
+      <div class="ph">
+        <h2>📊 <em>Despesas</em></h2>
+        <button class="btn btn-primary btn-sm" onclick="openModal('m-add-desp')">+ Lançar</button>
+      </div>
+      <div id="desp-year-tabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none"></div>
+      <div id="desp-month-tabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none"></div>
+      <div id="pg-desp-content"></div>
+    </div>
     <!-- PLAYER PAGES -->
     <div class="page" id="pg-phome">
       <div class="ph"><h2 id="p-welcome">Olá! 👋</h2>
@@ -553,6 +562,49 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
   <div id="m-sumula-body"></div>
 </div></div>
 
+<div class="moverlay" id="m-add-desp"><div class="mbox">
+  <div class="mhandle"></div>
+  <div class="mhead"><div class="mtitle">📊 Lançar Despesa</div><button class="mclose" onclick="closeModal('m-add-desp')">✕</button></div>
+  <div class="fg"><label class="fl">Categoria *</label>
+    <select class="fi" id="desp-cat">
+      <option value="Aluguel Campo">⚽ Aluguel Campo</option>
+      <option value="Arbitragem">🟨 Arbitragem</option>
+      <option value="Lavagem Coletes">👕 Lavagem Coletes</option>
+      <option value="Bolas">🏈 Bolas</option>
+      <option value="Festa">🎉 Festa</option>
+      <option value="Outros">📦 Outros</option>
+    </select>
+  </div>
+  <div class="fg"><label class="fl">Descrição</label><input class="fi" id="desp-desc" placeholder="Ex: Aluguel campo semana 1"></div>
+  <div class="frow">
+    <div class="fg"><label class="fl">Valor (R$) *</label><input class="fi" id="desp-valor" type="number" placeholder="0,00" step="0.01"></div>
+    <div class="fg"><label class="fl">Data *</label><input class="fi" id="desp-data" type="date"></div>
+  </div>
+  <button class="btn btn-primary btn-block" onclick="addDespesa()">Salvar Despesa</button>
+</div></div>
+
+<div class="moverlay" id="m-edit-desp"><div class="mbox">
+  <div class="mhandle"></div>
+  <div class="mhead"><div class="mtitle">✏️ Editar Despesa</div><button class="mclose" onclick="closeModal('m-edit-desp')">✕</button></div>
+  <input type="hidden" id="ed-id">
+  <div class="fg"><label class="fl">Categoria *</label>
+    <select class="fi" id="ed-cat">
+      <option value="Aluguel Campo">⚽ Aluguel Campo</option>
+      <option value="Arbitragem">🟨 Arbitragem</option>
+      <option value="Lavagem Coletes">👕 Lavagem Coletes</option>
+      <option value="Bolas">🏈 Bolas</option>
+      <option value="Festa">🎉 Festa</option>
+      <option value="Outros">📦 Outros</option>
+    </select>
+  </div>
+  <div class="fg"><label class="fl">Descrição</label><input class="fi" id="ed-desc" placeholder="Ex: Aluguel campo semana 1"></div>
+  <div class="frow">
+    <div class="fg"><label class="fl">Valor (R$) *</label><input class="fi" id="ed-valor" type="number" step="0.01"></div>
+    <div class="fg"><label class="fl">Data *</label><input class="fi" id="ed-data" type="date"></div>
+  </div>
+  <button class="btn btn-primary btn-block" onclick="saveEditDespesa()">Salvar Alterações</button>
+</div></div>
+
 <div class="moverlay" id="m-mens"><div class="mbox">
   <div class="mhandle"></div>
   <div class="mhead"><div class="mtitle">Lançar Mensalidade</div><button class="mclose" onclick="closeModal('m-mens')">✕</button></div>
@@ -652,9 +704,10 @@ const colMatches  = ()=>collection(db,'matches');
 const colFinance  = ()=>collection(db,'finance');
 const colRequests = ()=>collection(db,'requests');
 const colAvulsos  = ()=>collection(db,'avulsos');
+const colDespesas = ()=>collection(db,'despesas');
 
-let players=[],matches=[],finance=[],requests=[],avulsos=[];
-let loaded={players:false,matches:false,finance:false,requests:false,avulsos:false};
+let players=[],matches=[],finance=[],requests=[],avulsos=[],despesas=[];
+let loaded={players:false,matches:false,finance:false,requests:false,avulsos:false,despesas:false};
 let appStarted=false;
 
 function checkLoaded(){
@@ -702,12 +755,13 @@ onSnapshot(query(colAvulsos(),orderBy('createdAt','asc')),snap=>{
   avulsos=snap.docs.map(d=>({id:d.id,...d.data()}));
   loaded.avulsos=true;checkLoaded();
   if(appStarted)refreshCurrentPage();
-}, err=>{ 
-  // coleção avulsos pode não existir ainda — não bloqueia o carregamento
-  avulsos=[];
-  loaded.avulsos=true;
-  checkLoaded();
-});
+}, err=>{ avulsos=[];loaded.avulsos=true;checkLoaded(); });
+
+onSnapshot(query(colDespesas(),orderBy('data','asc')),snap=>{
+  despesas=snap.docs.map(d=>({id:d.id,...d.data()}));
+  loaded.despesas=true;checkLoaded();
+  if(appStarted)refreshCurrentPage();
+}, err=>{ despesas=[];loaded.despesas=true;checkLoaded(); });
 
 // ── SESSION ──
 let mode=null,currentPlayerId=null,currentPage=null;
@@ -876,7 +930,7 @@ function launchApp(){
   navigateTo(mode==='admin'?'pg-dash':'pg-phome');
 
 }
-const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-sort',ico:'🎲',label:'Sorteio'},{id:'pg-backup',ico:'💾',label:'Backup'}];
+const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-desp',ico:'📊',label:'Despesas'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-sort',ico:'🎲',label:'Sorteio'},{id:'pg-backup',ico:'💾',label:'Backup'}];
 const PLAYER_TABS=[{id:'pg-phome',ico:'🏠',label:'Início'},{id:'pg-pparts',ico:'📅',label:'Partidas'},{id:'pg-pfin',ico:'💰',label:'Financeiro'},{id:'pg-prank',ico:'🏆',label:'Ranking'},{id:'pg-pcchurr',ico:'🎂',label:'Churras.'}];
 function buildNav(){
   const tabs=mode==='admin'?ADMIN_TABS:PLAYER_TABS;
@@ -900,6 +954,7 @@ function renderPage(pgId){
     'pg-churr':renderChurrasco,
     'pg-sort':renderSorteio,
     'pg-backup':renderBackup,
+    'pg-desp':renderDespesas,
     'pg-phome':renderPlayerHome,'pg-pparts':renderPlayerMatches,'pg-pfin':renderPlayerFin,'pg-pcchurr':renderPlayerChurrasco,
     'pg-prank':()=>{currentRankYear=currentRankYear||new Date().getFullYear();renderRank(currentRankType,null,'p-rank-list');},
   };
@@ -948,6 +1003,12 @@ window.openModal=function(id){
     document.getElementById('av-jogos').value='0';
     document.getElementById('av-desc').value='';
     renderAvulsoList();
+  }
+  if(id==='m-add-desp'){
+    const today=new Date().toISOString().slice(0,10);
+    document.getElementById('desp-data').value=today;
+    document.getElementById('desp-valor').value='';
+    document.getElementById('desp-desc').value='';
   }
   document.getElementById(id).classList.add('open');
 }
@@ -1763,6 +1824,192 @@ function renderRank(type,_,listId){
       </div>
     </div>`;
   }).join('');
+}
+
+// ── DESPESAS ──
+const DESP_CATS={
+  'Aluguel Campo':'⚽','Arbitragem':'🟨','Lavagem Coletes':'👕',
+  'Bolas':'🏈','Festa':'🎉','Outros':'📦'
+};
+let despAno=new Date().getFullYear();
+let despMes=null; // null = todos os meses do ano
+
+window.addDespesa=async function(){
+  const cat=document.getElementById('desp-cat').value;
+  const desc=document.getElementById('desp-desc').value.trim();
+  const valor=parseFloat(document.getElementById('desp-valor').value)||0;
+  const data=document.getElementById('desp-data').value;
+  if(!valor||!data){toast('⚠️ Informe valor e data!');return;}
+  try{
+    await addDoc(colDespesas(),{cat,desc,valor,data,createdAt:serverTimestamp()});
+    closeModal('m-add-desp');
+    toast('✅ Despesa lançada!','ok');
+  }catch(e){toast('❌ Erro.','err');}
+}
+
+window.openEditDespesa=function(id){
+  const d=despesas.find(x=>x.id===id);if(!d)return;
+  document.getElementById('ed-id').value=d.id;
+  document.getElementById('ed-cat').value=d.cat;
+  document.getElementById('ed-desc').value=d.desc||'';
+  document.getElementById('ed-valor').value=d.valor;
+  document.getElementById('ed-data').value=d.data;
+  openModal('m-edit-desp');
+}
+
+window.saveEditDespesa=async function(){
+  const id=document.getElementById('ed-id').value;
+  const valor=parseFloat(document.getElementById('ed-valor').value)||0;
+  const data=document.getElementById('ed-data').value;
+  if(!valor||!data){toast('⚠️ Informe valor e data!');return;}
+  try{
+    await updateDoc(doc(db,'despesas',id),{
+      cat:document.getElementById('ed-cat').value,
+      desc:document.getElementById('ed-desc').value.trim(),
+      valor,data
+    });
+    closeModal('m-edit-desp');
+    toast('✅ Despesa atualizada!','ok');
+  }catch(e){toast('❌ Erro.','err');}
+}
+
+window.deleteDespesa=async function(id){
+  if(!confirm('Remover esta despesa?'))return;
+  try{await deleteDoc(doc(db,'despesas',id));toast('🗑️ Removida.','ok');}
+  catch(e){toast('❌ Erro.','err');}
+}
+
+window.selectDespAno=function(ano,el){
+  despAno=ano;despMes=null;
+  document.querySelectorAll('#desp-year-tabs button').forEach(b=>b.classList.toggle('btn-primary',b.dataset.ano==ano));
+  document.querySelectorAll('#desp-year-tabs button').forEach(b=>b.classList.toggle('btn-ghost',b.dataset.ano!=ano));
+  renderDespesas();
+}
+window.selectDespMes=function(mes,el){
+  despMes=despMes===mes?null:mes; // toggle
+  renderDespesas();
+}
+
+function getReceita(ano,mes){
+  // soma mensalidades pagas no período
+  return finance.filter(f=>{
+    if(f.status!=='pago')return false;
+    const [mm,yy]=f.mes.split('/');
+    if(parseInt(yy)!==ano)return false;
+    if(mes!==null&&mm!==mes)return false;
+    return true;
+  }).reduce((s,f)=>s+Number(f.valor||0),0);
+}
+
+function renderDespesas(){
+  const el=document.getElementById('pg-desp-content');if(!el)return;
+
+  // build year tabs
+  const years=new Set(despesas.map(d=>new Date(d.data+'T12:00:00').getFullYear()));
+  years.add(new Date().getFullYear());
+  const yearsSorted=[...years].sort((a,b)=>b-a);
+  const ytEl=document.getElementById('desp-year-tabs');
+  if(ytEl) ytEl.innerHTML=yearsSorted.map(y=>`
+    <button class="btn btn-xs ${y===despAno?'btn-primary':'btn-ghost'}" data-ano="${y}"
+      onclick="selectDespAno(${y},this)" style="flex-shrink:0">${y}</button>`).join('');
+
+  // build month tabs
+  const mNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const mtEl=document.getElementById('desp-month-tabs');
+  if(mtEl) mtEl.innerHTML=`<button class="btn btn-xs ${!despMes?'btn-primary':'btn-ghost'}" onclick="selectDespMes(null,this)" style="flex-shrink:0">Ano todo</button>`+
+    mNames.map((m,i)=>{
+      const mm=String(i+1).padStart(2,'0');
+      return`<button class="btn btn-xs ${despMes===mm?'btn-primary':'btn-ghost'}" onclick="selectDespMes('${mm}',this)" style="flex-shrink:0">${m}</button>`;
+    }).join('');
+
+  // filtrar despesas
+  const filtered=despesas.filter(d=>{
+    const dt=new Date(d.data+'T12:00:00');
+    if(dt.getFullYear()!==despAno)return false;
+    if(despMes!==null&&String(dt.getMonth()+1).padStart(2,'0')!==despMes)return false;
+    return true;
+  }).sort((a,b)=>new Date(b.data)-new Date(a.data));
+
+  const totalDesp=filtered.reduce((s,d)=>s+Number(d.valor||0),0);
+  const totalRec=getReceita(despAno,despMes);
+  const saldo=totalRec-totalDesp;
+  const periodo=despMes?`${mNames[parseInt(despMes)-1]}/${despAno}`:`Ano ${despAno}`;
+
+  // por categoria
+  const porCat={};
+  filtered.forEach(d=>{
+    if(!porCat[d.cat])porCat[d.cat]=0;
+    porCat[d.cat]+=Number(d.valor||0);
+  });
+  const catSorted=Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+
+  el.innerHTML=`
+    <!-- RESUMO -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:14px">
+      <div class="dcard">
+        <div class="dcard-val" style="color:var(--gd);font-size:1.4rem">R$ ${totalRec.toFixed(0)}</div>
+        <div class="dcard-lbl">Receitas</div>
+      </div>
+      <div class="dcard">
+        <div class="dcard-val" style="color:var(--r);font-size:1.4rem">R$ ${totalDesp.toFixed(0)}</div>
+        <div class="dcard-lbl">Despesas</div>
+      </div>
+      <div class="dcard">
+        <div class="dcard-val" style="color:${saldo>=0?'var(--gd)':'var(--r)'};font-size:1.4rem">R$ ${saldo.toFixed(0)}</div>
+        <div class="dcard-lbl">Saldo</div>
+      </div>
+    </div>
+
+    <!-- BARRA VISUAL -->
+    ${totalRec>0||totalDesp>0?`
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📊 ${periodo}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div style="font-size:.75rem;color:var(--m);width:70px">Receitas</div>
+        <div style="flex:1;background:var(--bg3);border-radius:6px;height:12px;overflow:hidden">
+          <div style="height:100%;background:var(--gr);border-radius:6px;width:${totalRec>0?Math.min(100,(totalRec/Math.max(totalRec,totalDesp))*100):0}%"></div>
+        </div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--gd);width:60px;text-align:right">R$ ${totalRec.toFixed(0)}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="font-size:.75rem;color:var(--m);width:70px">Despesas</div>
+        <div style="flex:1;background:var(--bg3);border-radius:6px;height:12px;overflow:hidden">
+          <div style="height:100%;background:var(--r);border-radius:6px;width:${totalDesp>0?Math.min(100,(totalDesp/Math.max(totalRec,totalDesp))*100):0}%"></div>
+        </div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--r);width:60px;text-align:right">R$ ${totalDesp.toFixed(0)}</div>
+      </div>
+      ${saldo<0?`<div style="margin-top:10px;padding:8px 12px;background:#ffeaea;border-radius:8px;font-size:.78rem;color:var(--r);font-weight:600">⚠️ Déficit de R$ ${Math.abs(saldo).toFixed(2)} no período</div>`:''}
+    </div>`:''}
+
+    <!-- POR CATEGORIA -->
+    ${catSorted.length?`
+    <div class="stitle" style="margin-top:0">Por categoria</div>
+    ${catSorted.map(([cat,val])=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:7px;box-shadow:var(--shadow)">
+        <div style="font-weight:600;font-size:.88rem">${DESP_CATS[cat]||'📦'} ${cat}</div>
+        <div style="font-weight:800;font-size:.9rem;color:var(--r)">R$ ${val.toFixed(2)}</div>
+      </div>`).join('')}`:''}
+
+    <!-- LISTA DESPESAS -->
+    <div class="stitle">Lançamentos (${filtered.length})</div>
+    ${filtered.length?filtered.map(d=>{
+      const dt=new Date(d.data+'T12:00:00');
+      const dtStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+      return`<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--border);border-radius:12px;padding:11px 14px;margin-bottom:7px;box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;border-radius:10px;background:#ffeaea;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">${DESP_CATS[d.cat]||'📦'}</div>
+          <div>
+            <div style="font-weight:700;font-size:.88rem">${d.cat}</div>
+            <div style="font-size:.72rem;color:var(--m)">${dtStr}${d.desc?' · '+d.desc:''}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="font-weight:800;font-size:.95rem;color:var(--r)">R$ ${Number(d.valor).toFixed(2)}</div>
+          <button class="btn btn-outline btn-xs" onclick="openEditDespesa('${d.id}')">✏️</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteDespesa('${d.id}')">🗑️</button>
+        </div>
+      </div>`;
+    }).join(''):`<div class="empty"><div class="ei">📊</div><p>Nenhuma despesa lançada neste período.</p></div>`}`;
 }
 
 // ── BACKUP ──
