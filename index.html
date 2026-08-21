@@ -409,8 +409,12 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
     </div>
     <div class="page" id="pg-desp">
       <div class="ph">
-        <h2>📊 <em>Despesas</em></h2>
-        <button class="btn btn-primary btn-sm" onclick="openModal('m-add-desp')">+ Lançar</button>
+        <h2>📊 <em>Balanço</em></h2>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openModal('m-copiar-mes')" style="font-size:.7rem">📋 Copiar mês</button>
+          <button class="btn btn-ghost btn-sm" onclick="openModal('m-saldo-inicial')" style="font-size:.7rem">⚙️ Saldo</button>
+          <button class="btn btn-primary btn-sm" onclick="openModal('m-add-desp')">+ Lançar</button>
+        </div>
       </div>
       <div id="desp-year-tabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none"></div>
       <div id="desp-month-tabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none"></div>
@@ -560,6 +564,42 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
   <div class="mhandle"></div>
   <div class="mhead"><div class="mtitle">📋 Súmula</div><button class="mclose" onclick="closeModal('m-sumula')">✕</button></div>
   <div id="m-sumula-body"></div>
+</div></div>
+
+<div class="moverlay" id="m-copiar-mes"><div class="mbox">
+  <div class="mhandle"></div>
+  <div class="mhead"><div class="mtitle">📋 Copiar Despesas</div><button class="mclose" onclick="closeModal('m-copiar-mes')">✕</button></div>
+  <div style="font-size:.82rem;color:var(--m);margin-bottom:14px;line-height:1.6">Copia todas as despesas de um mês para outro. Ideal para despesas fixas mensais.</div>
+  <div class="fg"><label class="fl">Mês de origem</label>
+    <select class="fi" id="cop-origem">
+      <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+      <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+      <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+      <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+  </div>
+  <div class="fg"><label class="fl">Ano de origem</label><input class="fi" id="cop-ano-orig" type="number" placeholder="2026"></div>
+  <div class="fg"><label class="fl">Mês de destino</label>
+    <select class="fi" id="cop-destino">
+      <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+      <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+      <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+      <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+  </div>
+  <div class="fg"><label class="fl">Ano de destino</label><input class="fi" id="cop-ano-dest" type="number" placeholder="2026"></div>
+  <button class="btn btn-primary btn-block" onclick="copiarMes()">Copiar Despesas</button>
+</div></div>
+
+<div class="moverlay" id="m-saldo-inicial"><div class="mbox">
+  <div class="mhandle"></div>
+  <div class="mhead"><div class="mtitle">⚙️ Saldo Inicial do Ano</div><button class="mclose" onclick="closeModal('m-saldo-inicial')">✕</button></div>
+  <div style="font-size:.82rem;color:var(--m);margin-bottom:14px;line-height:1.6">
+    Valor em caixa no início do ano. É somado ao saldo anual para mostrar o resultado real do ano.
+  </div>
+  <div class="fg"><label class="fl">Ano</label><input class="fi" id="si-ano" type="number" placeholder="2026"></div>
+  <div class="fg"><label class="fl">Saldo inicial (R$)</label><input class="fi" id="si-valor" type="number" placeholder="0,00" step="0.01"></div>
+  <button class="btn btn-primary btn-block" onclick="saveSaldoInicial()">Salvar</button>
 </div></div>
 
 <div class="moverlay" id="m-add-desp"><div class="mbox">
@@ -930,7 +970,7 @@ function launchApp(){
   navigateTo(mode==='admin'?'pg-dash':'pg-phome');
 
 }
-const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-desp',ico:'📊',label:'Despesas'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-sort',ico:'🎲',label:'Sorteio'},{id:'pg-backup',ico:'💾',label:'Backup'}];
+const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-desp',ico:'📊',label:'Balanço'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-backup',ico:'💾',label:'Backup'}];
 const PLAYER_TABS=[{id:'pg-phome',ico:'🏠',label:'Início'},{id:'pg-pparts',ico:'📅',label:'Partidas'},{id:'pg-pfin',ico:'💰',label:'Financeiro'},{id:'pg-prank',ico:'🏆',label:'Ranking'},{id:'pg-pcchurr',ico:'🎂',label:'Churras.'}];
 function buildNav(){
   const tabs=mode==='admin'?ADMIN_TABS:PLAYER_TABS;
@@ -1009,6 +1049,21 @@ window.openModal=function(id){
     document.getElementById('desp-data').value=today;
     document.getElementById('desp-valor').value='';
     document.getElementById('desp-desc').value='';
+  }
+  if(id==='m-copiar-mes'){
+    const now=new Date();
+    const curM=String(now.getMonth()+1).padStart(2,'0');
+    const nextM=String(now.getMonth()===11?1:now.getMonth()+2).padStart(2,'0');
+    const nextY=now.getMonth()===11?now.getFullYear()+1:now.getFullYear();
+    document.getElementById('cop-origem').value=curM;
+    document.getElementById('cop-ano-orig').value=now.getFullYear();
+    document.getElementById('cop-destino').value=nextM;
+    document.getElementById('cop-ano-dest').value=nextY;
+  }
+  if(id==='m-saldo-inicial'){
+    const ano=new Date().getFullYear();
+    document.getElementById('si-ano').value=ano;
+    document.getElementById('si-valor').value=localStorage.getItem(`baba_saldo_${ano}`)||'0';
   }
   document.getElementById(id).classList.add('open');
 }
@@ -1834,6 +1889,43 @@ const DESP_CATS={
 let despAno=new Date().getFullYear();
 let despMes=null; // null = todos os meses do ano
 
+window.copiarMes=async function(){
+  const orig=document.getElementById('cop-origem').value;
+  const anoOrig=document.getElementById('cop-ano-orig').value||new Date().getFullYear();
+  const dest=document.getElementById('cop-destino').value;
+  const anoDest=document.getElementById('cop-ano-dest').value||new Date().getFullYear();
+  if(orig===dest&&anoOrig===anoDest){toast('⚠️ Origem e destino são iguais!');return;}
+  // busca despesas do mês de origem
+  const origem=despesas.filter(d=>{
+    const dt=new Date(d.data+'T12:00:00');
+    return String(dt.getMonth()+1).padStart(2,'0')===orig&&dt.getFullYear()===parseInt(anoOrig);
+  });
+  if(!origem.length){toast('⚠️ Nenhuma despesa no mês de origem!');return;}
+  if(!confirm(`Copiar ${origem.length} despesa(s) de ${orig}/${anoOrig} para ${dest}/${anoDest}?`))return;
+  try{
+    const jobs=origem.map(d=>{
+      // ajusta data para o mês destino mantendo o dia
+      const dtOrig=new Date(d.data+'T12:00:00');
+      const dia=String(dtOrig.getDate()).padStart(2,'0');
+      const novaData=`${anoDest}-${dest}-${dia}`;
+      const {id,...data}=d;
+      return addDoc(colDespesas(),{...data,data:novaData,createdAt:serverTimestamp()});
+    });
+    await Promise.all(jobs);
+    closeModal('m-copiar-mes');
+    toast(`✅ ${origem.length} despesa(s) copiadas para ${dest}/${anoDest}!`,'ok');
+  }catch(e){toast('❌ Erro ao copiar.','err');}
+}
+
+window.saveSaldoInicial=function(){
+  const ano=parseInt(document.getElementById('si-ano').value)||new Date().getFullYear();
+  const valor=parseFloat(document.getElementById('si-valor').value)||0;
+  localStorage.setItem(`baba_saldo_${ano}`,String(valor));
+  closeModal('m-saldo-inicial');
+  toast(`✅ Saldo inicial ${ano}: R$ ${valor.toFixed(2)}`, 'ok');
+  renderDespesas();
+}
+
 window.addDespesa=async function(){
   const cat=document.getElementById('desp-cat').value;
   const desc=document.getElementById('desp-desc').value.trim();
@@ -1932,7 +2024,9 @@ function renderDespesas(){
 
   const totalDesp=filtered.reduce((s,d)=>s+Number(d.valor||0),0);
   const totalRec=getReceita(despAno,despMes);
-  const saldo=totalRec-totalDesp;
+  // saldo inicial só no modo anual (sem filtro de mês)
+  const saldoInicial=despMes===null?parseFloat(localStorage.getItem(`baba_saldo_${despAno}`)||'0'):0;
+  const saldo=totalRec-totalDesp+saldoInicial;
   const periodo=despMes?`${mNames[parseInt(despMes)-1]}/${despAno}`:`Ano ${despAno}`;
 
   // por categoria
@@ -1956,7 +2050,8 @@ function renderDespesas(){
       </div>
       <div class="dcard">
         <div class="dcard-val" style="color:${saldo>=0?'var(--gd)':'var(--r)'};font-size:1.4rem">R$ ${saldo.toFixed(0)}</div>
-        <div class="dcard-lbl">Saldo</div>
+        <div class="dcard-lbl">Saldo${saldoInicial?` <span style="font-size:.55rem;color:var(--m)">(+R$${saldoInicial.toFixed(0)} inicial)</span>`:''}
+        </div>
       </div>
     </div>
 
