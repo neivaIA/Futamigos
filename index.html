@@ -1767,6 +1767,7 @@ window.toggleMens=async function(pid){
 }
 window.sendPendingWA=function(){
   const pendentes=[...players].filter(p=>{
+    if(p.status==='inativo')return false;
     const recs=finance.filter(f=>f.playerId===p.id&&f.mes===currentFinMonth).sort((a,b)=>b.id-a.id);
     return recs[0]?.status==='pendente';
   }).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
