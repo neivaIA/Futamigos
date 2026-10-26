@@ -407,6 +407,15 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
       <div class="ph"><h2>💾 <em>Backup</em></h2></div>
       <div id="pg-backup-content"></div>
     </div>
+    <div class="page" id="pg-melhores">
+      <div class="ph">
+        <h2>⭐ <em>Melhores</em></h2>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" id="btn-toggle-votacao" onclick="toggleVotacao()" style="font-size:.75rem">⏸ Fechar votação</button>
+        </div>
+      </div>
+      <div id="pg-melhores-content"></div>
+    </div>
     <div class="page" id="pg-desp">
       <div class="ph">
         <h2>📊 <em>Balanço</em></h2>
@@ -450,6 +459,10 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
     <div class="page" id="pg-pcchurr">
       <div class="ph"><h2>🎂 <em>Churrasco</em></h2></div>
       <div id="pg-pcchurr-content"></div>
+    </div>
+    <div class="page" id="pg-pmelhores">
+      <div class="ph"><h2>⭐ <em>Melhores</em></h2></div>
+      <div id="pg-pmelhores-content"></div>
     </div>
   </div>
   <div class="bot-nav" id="bot-nav"></div>
@@ -970,8 +983,8 @@ function launchApp(){
   navigateTo(mode==='admin'?'pg-dash':'pg-phome');
 
 }
-const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-desp',ico:'📊',label:'Balanço'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-backup',ico:'💾',label:'Backup'}];
-const PLAYER_TABS=[{id:'pg-phome',ico:'🏠',label:'Início'},{id:'pg-pparts',ico:'📅',label:'Partidas'},{id:'pg-pfin',ico:'💰',label:'Financeiro'},{id:'pg-prank',ico:'🏆',label:'Ranking'},{id:'pg-pcchurr',ico:'🎂',label:'Churras.'}];
+const ADMIN_TABS=[{id:'pg-dash',ico:'🏠',label:'Início'},{id:'pg-jogs',ico:'👥',label:'Jogadores'},{id:'pg-parts',ico:'📅',label:'Partidas'},{id:'pg-fin',ico:'💰',label:'Financeiro'},{id:'pg-desp',ico:'📊',label:'Balanço'},{id:'pg-rank',ico:'🏆',label:'Ranking'},{id:'pg-churr',ico:'🍖',label:'Churras.'},{id:'pg-melhores',ico:'⭐',label:'Melhores'},{id:'pg-backup',ico:'💾',label:'Backup'}];
+const PLAYER_TABS=[{id:'pg-phome',ico:'🏠',label:'Início'},{id:'pg-pparts',ico:'📅',label:'Partidas'},{id:'pg-pfin',ico:'💰',label:'Financeiro'},{id:'pg-prank',ico:'🏆',label:'Ranking'},{id:'pg-pcchurr',ico:'🎂',label:'Churras.'},{id:'pg-pmelhores',ico:'⭐',label:'Melhores'}];
 function buildNav(){
   const tabs=mode==='admin'?ADMIN_TABS:PLAYER_TABS;
   document.getElementById('bot-nav').innerHTML=tabs.map(t=>`<button class="bnav-btn" id="bnav-${t.id}" onclick="navigateTo('${t.id}')"><span class="ico">${t.ico}</span>${t.label}</button>`).join('');
@@ -995,8 +1008,10 @@ function renderPage(pgId){
     'pg-sort':renderSorteio,
     'pg-backup':renderBackup,
     'pg-desp':renderDespesas,
+    'pg-melhores':renderMelhores,
     'pg-phome':renderPlayerHome,'pg-pparts':renderPlayerMatches,'pg-pfin':renderPlayerFin,'pg-pcchurr':renderPlayerChurrasco,
     'pg-prank':()=>{currentRankYear=currentRankYear||new Date().getFullYear();renderRank(currentRankType,null,'p-rank-list');},
+    'pg-pmelhores':renderPlayerMelhores,
   };
   if(map[pgId])map[pgId]();
 }
@@ -2260,6 +2275,159 @@ window.importarBackup=async function(input){
   };
   reader.readAsText(input.files[0]);
 }
+
+// ── MELHORES DO ANO ──
+const POSICOES_VOTACAO=['Zagueiro','Meia','Lateral','Atacante'];
+let votacaoAberta=true;
+let votosCache={};// {playerId: {zagueiro,meia,lateral,atacante,ano}}
+
+function colVotos(){return collection(db,'votos_melhores');}
+
+async function carregarVotos(){
+  const snap=await getDocs(colVotos());
+  votosCache={};
+  snap.forEach(d=>{votosCache[d.id]={...d.data(),id:d.id};});
+}
+
+function getVotacaoAberta(){
+  const v=localStorage.getItem('baba_votacao_aberta');
+  return v===null?true:v==='true';
+}
+function setVotacaoAberta(val){
+  localStorage.setItem('baba_votacao_aberta',val?'true':'false');
+  votacaoAberta=val;
+}
+
+window.toggleVotacao=async function(){
+  const aberta=getVotacaoAberta();
+  const nova=!aberta;
+  setVotacaoAberta(nova);
+  toast(nova?'✅ Votação aberta!':'🔒 Votação encerrada!','ok');
+  renderMelhores();
+};
+
+function contarVotos(ano){
+  const contagem={};// pos->{ playerId->count }
+  POSICOES_VOTACAO.forEach(p=>{contagem[p.toLowerCase()]={};});
+  Object.values(votosCache).forEach(v=>{
+    if(v.ano!==ano)return;
+    POSICOES_VOTACAO.forEach(pos=>{
+      const k=pos.toLowerCase();
+      const pid=v[k];
+      if(pid){contagem[k][pid]=(contagem[k][pid]||0)+1;}
+    });
+  });
+  return contagem;
+}
+
+function renderMelhores(){
+  const el=document.getElementById('pg-melhores-content');if(!el)return;
+  const aberta=getVotacaoAberta();
+  const btn=document.getElementById('btn-toggle-votacao');
+  if(btn){btn.textContent=aberta?'🔒 Encerrar votação':'✅ Abrir votação';}
+  const ano=new Date().getFullYear();
+  carregarVotos().then(()=>{
+    const contagem=contarVotos(ano);
+    const totalVotantes=Object.keys(votosCache).filter(id=>votosCache[id].ano===ano).length;
+    let html=`<div style="margin-bottom:12px;padding:10px 14px;background:${aberta?'#e8fff2':'#fff3e0'};border:1px solid ${aberta?'#b3f0cc':'#ffcc80'};border-radius:12px;font-size:.82rem;font-weight:600;color:${aberta?'#00913f':'#e65100'}">
+      ${aberta?'✅ Votação aberta':'🔒 Votação encerrada'} · ${totalVotantes} voto${totalVotantes!==1?'s':''} registrado${totalVotantes!==1?'s':''}
+    </div>`;
+    POSICOES_VOTACAO.forEach(pos=>{
+      const k=pos.toLowerCase();
+      const votos=contagem[k]||{};
+      const sorted=Object.entries(votos).sort((a,b)=>b[1]-a[1]);
+      const maxV=sorted.length?sorted[0][1]:0;
+      html+=`<div class="card" style="margin-bottom:12px">
+        <div style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">🏅 Melhor ${pos}</div>`;
+      if(sorted.length===0){
+        html+=`<div style="font-size:.82rem;color:var(--m);text-align:center;padding:12px 0">Nenhum voto ainda</div>`;
+      } else {
+        sorted.forEach(([pid,cnt],i)=>{
+          const p=players.find(x=>x.id===pid);
+          const nome=p?p.name:'(removido)';
+          const pct=totalVotantes>0?Math.round((cnt/totalVotantes)*100):0;
+          const isLider=cnt===maxV;
+          html+=`<div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <span style="font-size:.85rem;font-weight:${isLider?'700':'400'};color:${isLider?'var(--gold)':'var(--txt)'}">${isLider&&i===0?'👑 ':''}${nome}</span>
+              <span style="font-size:.78rem;color:var(--m)">${cnt} voto${cnt!==1?'s':''} (${pct}%)</span>
+            </div>
+            <div style="height:6px;background:var(--bg3);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${isLider?'var(--gold)':'var(--navy)'};border-radius:4px;transition:width .3s"></div>
+            </div>
+          </div>`;
+        });
+      }
+      html+=`</div>`;
+    });
+    el.innerHTML=html;
+  });
+}
+
+function renderPlayerMelhores(){
+  const el=document.getElementById('pg-pmelhores-content');if(!el)return;
+  const aberta=getVotacaoAberta();
+  const ano=new Date().getFullYear();
+  carregarVotos().then(()=>{
+    const meuVoto=votosCache[currentPlayerId]||{};
+    if(!aberta){
+      // exibir resultado parcial para o jogador
+      const contagem=contarVotos(ano);
+      const totalVotantes=Object.keys(votosCache).filter(id=>votosCache[id].ano===ano).length;
+      let html=`<div style="margin-bottom:14px;padding:10px 14px;background:#fff3e0;border:1px solid #ffcc80;border-radius:12px;font-size:.82rem;font-weight:600;color:#e65100">🔒 Votação encerrada</div>`;
+      POSICOES_VOTACAO.forEach(pos=>{
+        const k=pos.toLowerCase();
+        const votos=contagem[k]||{};
+        const sorted=Object.entries(votos).sort((a,b)=>b[1]-a[1]);
+        const vencedorId=sorted.length?sorted[0][0]:null;
+        const vencedor=vencedorId?players.find(x=>x.id===vencedorId):null;
+        html+=`<div class="card" style="margin-bottom:12px">
+          <div style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">🏅 Melhor ${pos}</div>
+          ${vencedor?`<div style="font-size:1rem;font-weight:700;color:var(--gold)">👑 ${vencedor.name}</div><div style="font-size:.78rem;color:var(--m);margin-top:2px">${sorted[0][1]} voto${sorted[0][1]!==1?'s':''}</div>`:'<div style="font-size:.82rem;color:var(--m)">Sem votos</div>'}
+        </div>`;
+      });
+      el.innerHTML=html;
+      return;
+    }
+    // votação aberta — formulário
+    const jaVotou=meuVoto.ano===ano;
+    let html=`<div style="margin-bottom:14px;padding:10px 14px;background:#e8fff2;border:1px solid #b3f0cc;border-radius:12px;font-size:.82rem;font-weight:600;color:#00913f">✅ Votação aberta ${jaVotou?'· Você já votou — pode alterar seu voto':''}</div>
+    <form onsubmit="salvarVoto(event)">`;
+    POSICOES_VOTACAO.forEach(pos=>{
+      const k=pos.toLowerCase();
+      const candidatos=players.filter(p=>p.status==='ativo'&&p.position===pos&&p.id!==currentPlayerId);
+      const selAtual=meuVoto[k]||'';
+      html+=`<div class="card" style="margin-bottom:12px">
+        <label style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:8px">🏅 Melhor ${pos}</label>
+        <select name="${k}" style="width:100%;padding:10px 12px;border:1.5px solid var(--brd);border-radius:10px;font-size:.9rem;background:var(--bg2);color:var(--txt)">
+          <option value="">-- Escolha o melhor ${pos} --</option>
+          ${candidatos.map(p=>`<option value="${p.id}"${selAtual===p.id?' selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </div>`;
+    });
+    html+=`<button type="submit" class="btn btn-primary btn-block" style="margin-top:6px">💾 ${jaVotou?'Atualizar meu voto':'Registrar meu voto'}</button></form>`;
+    el.innerHTML=html;
+  });
+}
+
+window.salvarVoto=async function(e){
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  const ano=new Date().getFullYear();
+  const dados={ano,playerId:currentPlayerId};
+  POSICOES_VOTACAO.forEach(pos=>{
+    const k=pos.toLowerCase();
+    dados[k]=fd.get(k)||'';
+  });
+  try{
+    await setDoc(doc(db,'votos_melhores',currentPlayerId),dados);
+    votosCache[currentPlayerId]={...dados,id:currentPlayerId};
+    toast('✅ Voto registrado!','ok');
+    renderPlayerMelhores();
+  }catch(err){
+    toast('❌ Erro ao salvar voto: '+err.message,'err');
+  }
+};
 
 // ── SORTEIO ──
 let sortNTimes=3;
