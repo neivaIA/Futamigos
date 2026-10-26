@@ -2395,7 +2395,7 @@ function renderPlayerMelhores(){
     <form onsubmit="salvarVoto(event)">`;
     POSICOES_VOTACAO.forEach(pos=>{
       const k=pos.toLowerCase();
-      const candidatos=players.filter(p=>p.status==='ativo'&&p.position===pos&&p.id!==currentPlayerId);
+      const candidatos=players.filter(p=>p.status==='ativo'&&p.pos===pos&&p.id!==currentPlayerId);
       const selAtual=meuVoto[k]||'';
       html+=`<div class="card" style="margin-bottom:12px">
         <label style="font-size:.68rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:8px">🏅 Melhor ${pos}</label>
