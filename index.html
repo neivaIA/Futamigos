@@ -2128,6 +2128,15 @@ function renderDespesas(){
 }
 
 // ── PDF ANUAL BALANÇO ──
+// converte campo data para string YYYY-MM-DD independente do formato salvo
+function despDataStr(d){
+  if(!d.data)return'';
+  if(typeof d.data==='string')return d.data;
+  // Timestamp Firestore: {seconds, nanoseconds} ou .toDate()
+  if(d.data.toDate)return d.data.toDate().toISOString().slice(0,10);
+  if(d.data.seconds)return new Date(d.data.seconds*1000).toISOString().slice(0,10);
+  return String(d.data);
+}
 window.exportBalancoPDF=function(){
   const ano=despAno;
   const mNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -2138,13 +2147,15 @@ window.exportBalancoPDF=function(){
     const mm=String(i+1).padStart(2,'0');
     const rec=getReceita(ano,mm);
     const desp=despesas.filter(d=>{
-      const dt=new Date(d.data+'T12:00:00');
+      const ds=despDataStr(d);if(!ds)return false;
+      const dt=new Date(ds+'T12:00:00');
       return dt.getFullYear()===ano&&String(dt.getMonth()+1).padStart(2,'0')===mm;
     }).reduce((s,d)=>s+Number(d.valor||0),0);
     // categorias do mês
     const cats={};
     despesas.filter(d=>{
-      const dt=new Date(d.data+'T12:00:00');
+      const ds=despDataStr(d);if(!ds)return false;
+      const dt=new Date(ds+'T12:00:00');
       return dt.getFullYear()===ano&&String(dt.getMonth()+1).padStart(2,'0')===mm;
     }).forEach(d=>{cats[d.cat]=(cats[d.cat]||0)+Number(d.valor||0);});
     return{nome,mm,rec,desp,saldo:rec-desp,cats};
@@ -2185,12 +2196,14 @@ window.exportBalancoPDF=function(){
   // detalhamento por mês
   const detalhesMeses=meses.map((m,i)=>{
     const lancamentos=despesas.filter(d=>{
-      const dt=new Date(d.data+'T12:00:00');
+      const ds=despDataStr(d);if(!ds)return false;
+      const dt=new Date(ds+'T12:00:00');
       return dt.getFullYear()===ano&&String(dt.getMonth()+1).padStart(2,'0')===m.mm;
-    }).sort((a,b)=>new Date(a.data)-new Date(b.data));
+    }).sort((a,b)=>new Date(despDataStr(a))-new Date(despDataStr(b)));
     if(lancamentos.length===0)return'';
     const linhas=lancamentos.map(d=>{
-      const dt=new Date(d.data+'T12:00:00');
+      const ds=despDataStr(d);
+      const dt=new Date(ds+'T12:00:00');
       const dtStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
       return`<tr>
         <td style="padding:5px 8px;color:#555">${dtStr}</td>
