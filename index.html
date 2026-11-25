@@ -710,7 +710,7 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
     <div id="epr-foto-preview" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--navy2),var(--navy3));display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;color:#fff;overflow:hidden;flex-shrink:0;border:3px solid var(--y)"></div>
     <label style="cursor:pointer">
       <span class="btn btn-ghost btn-sm" style="font-size:.75rem">📷 Alterar foto</span>
-      <input type="file" id="epr-foto-input" accept="image/*" style="display:none" onchange="previewFoto(this)">
+      <input type="file" id="epr-foto-input" accept="image/*" style="display:none" onchange="previewFotoPerfil(this)">
     </label>
     <div id="epr-foto-hint" style="font-size:.7rem;color:var(--m);text-align:center;display:none">Foto selecionada · será salva ao confirmar</div>
   </div>
@@ -951,7 +951,7 @@ function getPlayerFinStatus(playerId){
 }
 
 // comprime imagem para base64 (max 300x300, qualidade 0.75)
-window.previewFoto=function(input){
+window.previewFotoPerfil=function(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
