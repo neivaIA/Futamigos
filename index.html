@@ -705,6 +705,15 @@ html,body{height:100%;background:var(--bg);color:var(--t);font-family:'Inter',sa
 <div class="moverlay" id="m-edit-profile"><div class="mbox">
   <div class="mhandle"></div>
   <div class="mhead"><div class="mtitle">✏️ Editar Perfil</div><button class="mclose" onclick="closeModal('m-edit-profile')">✕</button></div>
+  <!-- foto -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:14px">
+    <div id="epr-foto-preview" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--navy2),var(--navy3));display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;color:#fff;overflow:hidden;flex-shrink:0;border:3px solid var(--y)"></div>
+    <label style="cursor:pointer">
+      <span class="btn btn-ghost btn-sm" style="font-size:.75rem">📷 Alterar foto</span>
+      <input type="file" id="epr-foto-input" accept="image/*" style="display:none" onchange="previewFoto(this)">
+    </label>
+    <div id="epr-foto-hint" style="font-size:.7rem;color:var(--m);text-align:center;display:none">Foto selecionada · será salva ao confirmar</div>
+  </div>
   <div class="fg"><label class="fl">Nome completo *</label><input class="fi" id="epr-name" placeholder="Ex: João Silva"></div>
   <div class="fg"><label class="fl">Data de Nascimento</label><input class="fi" id="epr-nasc" type="date"></div>
   <div class="frow">
@@ -941,20 +950,51 @@ function getPlayerFinStatus(playerId){
   return{months:result,blocked:blockingPendentes.length>0,blockingCount:blockingPendentes.length,curYM,curDay};
 }
 
+// comprime imagem para base64 (max 300x300, qualidade 0.75)
+window.previewFoto=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const size=300;
+      canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d');
+      // crop quadrado centralizado
+      const side=Math.min(img.width,img.height);
+      const sx=(img.width-side)/2,sy=(img.height-side)/2;
+      ctx.drawImage(img,sx,sy,side,side,0,0,size,size);
+      const b64=canvas.toDataURL('image/jpeg',0.75);
+      const prev=document.getElementById('epr-foto-preview');
+      if(prev)prev.innerHTML=`<img src="${b64}" style="width:100%;height:100%;object-fit:cover">`;
+      document.getElementById('epr-foto-hint').style.display='block';
+      input._b64=b64;// guarda para salvar
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
 window.saveEditProfile=async function(){
   const p=players.find(x=>x.id===currentPlayerId);if(!p)return;
   const name=document.getElementById('epr-name').value.trim();
   const errEl=document.getElementById('epr-err');
   if(!name){errEl.style.display='block';return;}
   errEl.style.display='none';
+  const fotoInput=document.getElementById('epr-foto-input');
+  const novaFoto=fotoInput&&fotoInput._b64?fotoInput._b64:null;
   try{
-    await updateDoc(doc(db,'players',p.id),{
+    const upd={
       name,
       pos:document.getElementById('epr-pos').value,
       num:document.getElementById('epr-num').value||p.num,
       tel:document.getElementById('epr-tel').value.trim()||p.tel||'',
       dataNasc:document.getElementById('epr-nasc').value||p.dataNasc||''
-    });
+    };
+    if(novaFoto)upd.foto=novaFoto;
+    await updateDoc(doc(db,'players',p.id),upd);
+    if(fotoInput)fotoInput._b64=null;
     closeModal('m-edit-profile');
     toast('✅ Perfil atualizado!','ok');
   }catch(e){toast('❌ Erro ao salvar.','err');}
@@ -1047,6 +1087,15 @@ window.openModal=function(id){
       document.getElementById('epr-num').value=p.num==='—'?'':p.num||'';
       document.getElementById('epr-tel').value=p.tel||'';if(document.getElementById('epr-nasc'))document.getElementById('epr-nasc').value=p.dataNasc||'';
       document.getElementById('epr-err').style.display='none';
+      // foto preview
+      const prev=document.getElementById('epr-foto-preview');
+      const inp=document.getElementById('epr-foto-input');
+      if(inp)inp.value='';
+      document.getElementById('epr-foto-hint').style.display='none';
+      if(prev){
+        if(p.foto){prev.innerHTML=`<img src="${p.foto}" style="width:100%;height:100%;object-fit:cover">`;}
+        else{prev.innerHTML=ini(p.name);}
+      }
     }
   }
   if(id==='m-avulso'){
@@ -1099,6 +1148,11 @@ window.toast=function(msg,type=''){
 
 // ── HELPERS ──
 function ini(n){return(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();}
+// avatar com foto ou iniciais
+function ava(p,cls='ava-40',extra=''){
+  if(p&&p.foto)return`<div class="ava ${cls}" style="padding:0;overflow:hidden;${extra}"><img src="${p.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`;
+  return`<div class="ava ${cls}" ${extra?`style="${extra}"`:''}>${ini(p?p.name:'?')}</div>`;
+}
 function fmtDate(d){try{return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});}catch(e){return d;}}
 function fmtDateLong(d){try{return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});}catch(e){return d;}}
 function nowYM(){const n=new Date();return String(n.getMonth()+1).padStart(2,'0')+'/'+n.getFullYear();}
@@ -1280,7 +1334,7 @@ function renderPlayers(){
     const inad=finance.filter(f=>f.playerId===p.id&&f.status==='pendente').length;
     const isInativo=p.status==='inativo';
     return `<div class="pli" style="${isInativo?'opacity:.55;background:#f5f5f5;':''}">
-      <div class="pli-left"><div class="ava ava-40" style="${isInativo?'background:linear-gradient(135deg,#9e9e9e,#bdbdbd)':''}">${ini(p.name)}</div>
+      <div class="pli-left">${ava(p,'ava-40',isInativo?'background:linear-gradient(135deg,#9e9e9e,#bdbdbd)':'')}
         <div>
           <div class="pli-name">${p.name} <span style="color:var(--m);font-size:.72rem">#${p.num}</span>
             ${isInativo?'<span class="badge badge-gray" style="font-size:.6rem">Inativo</span>':''}
@@ -1409,7 +1463,7 @@ window.openMatchDetail=function(id){
     sortedConf.forEach(p=>{if(cfData[p.id]===undefined)cfData[p.id]=null;});
     cfHtml+=sortedConf.map(p=>{const s=cfData[p.id];
       return `<div class="cfi">
-        <div style="display:flex;align-items:center;gap:8px"><div class="ava ava-40">${ini(p.name)}</div><div><div style="font-weight:600;font-size:.88rem">${p.name}</div><div style="font-size:.72rem;color:var(--m)">${p.pos}</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px">${ava(p,'ava-40')}<div><div style="font-weight:600;font-size:.88rem">${p.name}</div><div style="font-size:.72rem;color:var(--m)">${p.pos}</div></div></div>
         <div style="display:flex;gap:5px">
           <button class="cbtn yes ${s===true?'on':''}" onclick="setConf('${id}','${p.id}',true)">✓ Vai</button>
           <button class="cbtn no ${s===false?'on':''}" onclick="setConf('${id}','${p.id}',false)">✕ Não</button>
@@ -1516,7 +1570,7 @@ window.openSumula=function(matchId){
   const liveWarn=isLive?`<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:.8rem;color:var(--o);font-weight:600">▶ Partida em andamento — stats em tempo real</div>`:'';
   const playerRows=allP.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)">
-      <div class="ava ava-40">${ini(p.name)}</div>
+      ${ava(p,'ava-40')}
       <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div><div style="font-size:.68rem;color:var(--m)">${p.pos}</div></div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         <span style="font-size:.65rem;color:var(--m);font-weight:600">⚽</span>
@@ -1752,7 +1806,7 @@ function renderFin(){
       const hasRecord=!!last;
       return`<div class="meni">
         <div style="display:flex;align-items:center;gap:10px">
-          <div class="ava ava-40">${ini(p.name)}</div>
+          ${ava(p,'ava-40')}
           <div><div style="font-weight:700;font-size:.9rem">${p.name}</div><div style="font-size:.74rem;color:var(--m)">${hasRecord?`R$ ${Number(valor).toFixed(2)}`:'<span style="color:var(--m);font-style:italic">sem lançamento</span>'}</div></div>
         </div>
         <div style="display:flex;align-items:center;gap:5px">
@@ -1888,7 +1942,7 @@ function renderRank(type,_,listId){
     const lbl=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}°`;
     return`<div class="ritem">
       <div class="rpos ${pc}">${lbl}</div>
-      <div class="ava ava-40">${ini(p.name)}</div>
+      ${ava(p,'ava-40')}
       <div style="flex:1">
         <div class="rname">${p.name}${hasAvulso?` <span style="font-size:.6rem;background:#e3f2fd;color:#1565c0;border-radius:4px;padding:1px 5px;font-weight:700">+avulso</span>`:''}</div>
         <div class="rsub">${p.pos} · ${st.presencas} jogo${st.presencas!==1?'s':''}</div>
@@ -2963,7 +3017,7 @@ function renderChurrasco(){
       const idade=curYear-d.getFullYear();
       return`<div class="pli" style="${isToday?'border-color:var(--y);background:#fffde7;':''}">
         <div class="pli-left">
-          <div class="ava ava-40" style="${isToday?'background:linear-gradient(135deg,#f9a825,#e65100)':''}">${ini(p.name)}</div>
+          ${ava(p,'ava-40',isToday?'background:linear-gradient(135deg,#f9a825,#e65100)':'')}
           <div>
             <div class="pli-name">${p.name} ${isToday?'🎂':''}</div>
             <div class="pli-sub">${p.pos} · Dia ${dia} · ${idade} anos</div>
@@ -2984,7 +3038,7 @@ function renderChurrasco(){
       const idade=curYear-d.getFullYear();
       return`<div class="pli">
         <div class="pli-left">
-          <div class="ava ava-40">${ini(p.name)}</div>
+          ${ava(p,'ava-40')}
           <div>
             <div class="pli-name">${p.name}</div>
             <div class="pli-sub">${p.pos} · ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} · ${idade} anos</div>
@@ -3002,7 +3056,7 @@ function renderChurrasco(){
         ${semDataList.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')).map(p=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:6px;box-shadow:var(--shadow)">
             <div style="display:flex;align-items:center;gap:10px">
-              <div class="ava ava-40" style="background:linear-gradient(135deg,#bdbdbd,#9e9e9e)">${ini(p.name)}</div>
+              ${ava(p,'ava-40','background:linear-gradient(135deg,#bdbdbd,#9e9e9e)')}
               <div>
                 <div style="font-weight:700;font-size:.88rem">${p.name}</div>
                 <div style="font-size:.72rem;color:var(--m)">${p.pos}</div>
@@ -3032,7 +3086,7 @@ function renderDash(){
   const art=document.getElementById('d-art');
   const top=[...players].sort((a,b)=>(stats[b.id]?.gols||0)-(stats[a.id]?.gols||0))[0];
   if(top&&(stats[top.id]?.gols||0)>0){
-    art.innerHTML=`<div style="display:flex;align-items:center;gap:12px"><div class="ava ava-52">${ini(top.name)}</div><div><div style="font-weight:800;font-size:.95rem">🥇 ${top.name}</div><div style="color:var(--m);font-size:.77rem">${top.pos} · ${stats[top.id].gols} gols</div></div><div style="margin-left:auto;font-size:2.2rem;font-weight:900;color:var(--navy)">${stats[top.id].gols}</div></div>`;
+    art.innerHTML=`<div style="display:flex;align-items:center;gap:12px">${ava(top,'ava-52')}<div><div style="font-weight:800;font-size:.95rem">🥇 ${top.name}</div><div style="color:var(--m);font-size:.77rem">${top.pos} · ${stats[top.id].gols} gols</div></div><div style="margin-left:auto;font-size:2.2rem;font-weight:900;color:var(--navy)">${stats[top.id].gols}</div></div>`;
   }else{art.innerHTML=`<div class="empty" style="padding:18px"><div class="ei">⚽</div><p>Nenhum gol registrado</p></div>`;}
 }
 
@@ -3050,7 +3104,7 @@ function renderPlayerHome(){
   const finStatus=getPlayerFinStatus(p.id);
   document.getElementById('p-ficha').innerHTML=`
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div class="ava ava-52">${ini(p.name)}</div>
+      ${ava(p,'ava-52')}
       <div style="flex:1">
         <div style="font-weight:800;font-size:1rem">${p.name}</div>
         <div style="color:var(--m);font-size:.78rem">${p.pos} · #${p.num}${p.tel?' · '+p.tel:''}${p.dataNasc?` · 🎂 ${new Date(p.dataNasc+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`:''}</div>
@@ -3248,7 +3302,7 @@ function renderPlayerChurrasco(){
         const isMe=p.id===currentPlayerId;
         return`<div class="pli" style="${isToday?'border-color:var(--y);background:#fffde7;':''}${isMe?'border-color:var(--gr);':''} ">
           <div class="pli-left">
-            <div class="ava ava-40" style="${isToday?'background:linear-gradient(135deg,#f9a825,#e65100)':''}">${ini(p.name)}</div>
+            ${ava(p,'ava-40',isToday?'background:linear-gradient(135deg,#f9a825,#e65100)':'')}
             <div>
               <div class="pli-name">${p.name}${isMe?' 👤':''} ${isToday?'🎂':''}</div>
               <div class="pli-sub">${p.pos} · Dia ${dia} · ${idade} anos</div>
